@@ -1,2 +1,16 @@
-times: "Slots usually drop Tue–Thu 08-11 h."
-docs: "Passport, biometric photo, 35 € fee."
+menu:
+  - id: times
+    text: "📅 Appointment Info"
+    children:
+      - id: latest
+        text: "🔄 Latest Release Times"
+        answer: "Slots usually drop Tue–Thu 08–11 h."
+      - id: refresh_tips
+        text: "🗓️ When to Refresh?"
+        answer: "Refresh Ausländeramt page every 20 s during the window…"
+  - id: docs
+    text: "📃 Documentation"
+    children:
+      - id: required
+        text: "📋 Required Docs"
+        answer: "Passport, biometric photo, 35 € fee…"

@@ -30,3 +30,5 @@ run:
 clean:
 	docker rm -f \$(CONTAINER_NAME) 2>/dev/null || true
 	docker rmi \$(IMAGE_NAME) 2>/dev/null || true
+
+restart: clean build run

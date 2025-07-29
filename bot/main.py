@@ -1,30 +1,16 @@
-"""TerminJetzt Heilbronn – Telegram Bot
-================================================
-An object‑oriented rewrite that consumes a hierarchical ``menu.yaml`` and
-serves inline‑keyboard navigation in multiple languages.
-Copy‑paste this single file alongside ``menu.yaml`` and ``.env``.
+"""TerminJetzt Heilbronn – Telegram Bot (adapted for provided menu.yaml)
+=====================================================================
+Place this file next to **menu.yaml** and a **.env** containing at least
+`TELEGRAM_TJBOT_TOKEN`.  Run with:
 
-Dependencies
-------------
-* pyTelegramBotAPI 4.x  ➜  ``pip install pytelegrambotapi python‑dotenv pyyaml``
-* Python ≥ 3.9 (for | pattern‑matching)
+    pip install pytelegrambotapi python-dotenv pyyaml
+    python bot_main.py
 
-Environment (.env)
-------------------
-TELEGRAM_TJBOT_TOKEN="123456:ABC…"
-CHANNEL="@TerminJetztHeilbronn"
-DEFAULT_LANG="en"  # optional
-
-Structure
----------
-* ``MenuItem``     – immutable node of the navigation tree.
-* ``MenuLoader``   – parses YAML, builds tree, language fallback.
-* ``KeyboardFactory`` – converts nodes to ``InlineKeyboardMarkup``.
-* ``TerminBot``    – orchestrates TeleBot handlers.
-
-Author: ChatGPT 2025‑07‑29
+This version automatically detects language blocks in `menu.yaml` (e.g.
+`en:` → `menu:`) and renders nested inline-keyboard navigation with Back
+buttons.  It also exposes a *Notify Me* link to your Telegram channel at
+root level.
 """
-
 from __future__ import annotations
 
 import os
@@ -32,16 +18,15 @@ import logging
 from pathlib import Path
 from functools import lru_cache
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Tuple, Optional, Any
 
 import yaml
 from telebot import TeleBot, types
 from dotenv import load_dotenv
 
 # ---------------------------------------------------------------------------
-# 1. Menu Domain Model
+# 1. Domain Model
 # ---------------------------------------------------------------------------
-
 
 @dataclass(slots=True, frozen=True)
 class MenuItem:
@@ -50,8 +35,9 @@ class MenuItem:
     answer: Optional[str] = None
     children: Tuple["MenuItem", ...] = field(default_factory=tuple)
 
-    def find(self, path: List[str]) -> "MenuItem | None":
-        """Depth‑first search for the item located at *path* (list of ids)."""
+    # Recursive helpers ----------------------------------------------------
+
+    def find(self, path: List[str]) -> Optional["MenuItem"]:
         if not path:
             return self
         head, *tail = path
@@ -63,220 +49,220 @@ class MenuItem:
     def is_leaf(self) -> bool:
         return not self.children
 
-    # Navigation helpers ----------------------------------------------------
-
     def breadcrumb(self, path: List[str]) -> str:
-        parts = []
-        node: MenuItem | None = self.find(path)
-        while node:
+        """Return `Section / Subsection / Item` for display heading."""
+        parts: List[str] = []
+        node = self.find(path)
+        # Walk back towards root
+        while node and path:
             parts.append(node.text.strip())
-            # get parent by trimming last element and searching again
             path = path[:-1]
             node = self.find(path) if path else None
+        if node:
+            parts.append(node.text.strip())
         return " / ".join(reversed(parts))
-
 
 # ---------------------------------------------------------------------------
 # 2. Menu Loader – YAML → MenuItem tree
 # ---------------------------------------------------------------------------
 
-
 class MenuLoader:
-    def __init__(self, yaml_path: Path, default_lang: str = "en"):
+    def __init__(self, yaml_path: Path, default_lang: str = "en") -> None:
         self.yaml_path = yaml_path
         self.default_lang = default_lang
         self.root_items: Tuple[MenuItem, ...] = self._load()
 
-    # public api ------------------------------------------------------------
+    # Public ----------------------------------------------------------------
 
     def get_root(self) -> Tuple[MenuItem, ...]:
         return self.root_items
 
     def find_by_path(self, path: List[str]) -> Optional[MenuItem]:
+        if not path:
+            return None
         for root in self.root_items:
             if root.id == path[0]:
                 return root.find(path[1:])
         return None
 
-    # internal --------------------------------------------------------------
+    # Internal --------------------------------------------------------------
 
     def _load(self) -> Tuple[MenuItem, ...]:
-        with open(self.yaml_path, "r", encoding="utf‑8") as f:
-            raw: Dict = yaml.safe_load(f)
+        with open(self.yaml_path, "r", encoding="utf-8") as fh:
+            raw: Any = yaml.safe_load(fh)
 
-        lang = self.default_lang
-        if isinstance(raw.get("menu"), list):
+        # Accept 2 formats:
+        # 1) Top-level `menu: [...]`
+        # 2) Language block `en: { menu: [...] }`
+        if isinstance(raw, dict) and isinstance(raw.get("menu"), list):
             entries = raw["menu"]
-        else:  # language blocks
-            entries = raw.get(lang) or next(iter(raw.values()))["menu"]
+        elif isinstance(raw, dict) and self.default_lang in raw:
+            entries = raw[self.default_lang].get("menu", [])
+        else:
+            # Fallback: first dict value containing a list under `menu`.
+            entries = []
+            for val in raw.values() if isinstance(raw, dict) else []:
+                if isinstance(val, dict) and isinstance(val.get("menu"), list):
+                    entries = val["menu"]
+                    break
 
-        return tuple(self._parse_item(item) for item in entries)
+        return tuple(self._parse_item(node) for node in entries)
 
-    def _parse_item(self, node: Dict) -> MenuItem:
-        children = tuple(self._parse_item(c) for c in node.get("children", []))
+    def _parse_item(self, node: Dict[str, Any]) -> MenuItem:
+        child_nodes = [c for c in node.get("children", []) if isinstance(c, dict)]
+        children = tuple(self._parse_item(c) for c in child_nodes)
         return MenuItem(
-            id=node["id"],
-            text=node["text"],
+            id=node.get("id", ""),
+            text=node.get("text", ""),
             answer=node.get("answer"),
             children=children,
         )
-
 
 # ---------------------------------------------------------------------------
 # 3. Keyboard Factory – MenuItem → InlineKeyboardMarkup
 # ---------------------------------------------------------------------------
 
-BACK_CB = "BACK"
-
+BACK_ROOT = "ROOT"  # callback data that returns to top-level menu
 
 class KeyboardFactory:
-    def __init__(self, channel: str | None = None):
+    def __init__(self, channel: Optional[str] = None) -> None:
         self.channel = channel
 
-    def make_keyboard(
-        self, parent_path: List[str], items: Tuple[MenuItem, ...]
-    ) -> types.InlineKeyboardMarkup:
+    def build(self, parent_path: List[str], items: Tuple[MenuItem, ...]) -> types.InlineKeyboardMarkup:
         kb = types.InlineKeyboardMarkup(row_width=1)
         for itm in items:
             cb_data = ":".join(parent_path + [itm.id])
             kb.add(types.InlineKeyboardButton(itm.text, callback_data=cb_data))
 
-        # Special Channel / Notify button at root level
+        # Channel link on root menu
         if not parent_path and self.channel:
             kb.add(
                 types.InlineKeyboardButton(
-                    "🔔 Notify Me (Join)",
+                    "🔔 Notify Me",
                     url=f"https://t.me/{self.channel.lstrip('@')}",
                 )
             )
 
-        # Back button for non‑root menus
+        # Back button on sub-menus
         if parent_path:
-            back_data = ":".join(parent_path[:-1]) or "ROOT"
-            kb.add(types.InlineKeyboardButton("⬅️ Back", callback_data=back_data))
+            prev_cb = ":".join(parent_path[:-1]) if parent_path[:-1] else BACK_ROOT
+            kb.add(types.InlineKeyboardButton("⬅️ Back", callback_data=prev_cb))
         return kb
-
 
 # ---------------------------------------------------------------------------
 # 4. Bot Orchestrator
 # ---------------------------------------------------------------------------
 
-
 class TerminBot:
-    def __init__(self, token: str, menu_loader: MenuLoader, channel: str | None = None):
+    def __init__(self, token: str, loader: MenuLoader, channel: Optional[str] = None):
         self.bot = TeleBot(token, parse_mode="HTML")
-        self.menu_loader = menu_loader
+        self.loader = loader
         self.kbf = KeyboardFactory(channel)
-        self._setup_handlers()
+        self._register_handlers()
 
-    # ---------------- TeleBot Handlers ------------------------------------
+    # Register telegram handlers ------------------------------------------
 
-    def _setup_handlers(self):
+    def _register_handlers(self) -> None:
         @self.bot.message_handler(commands=["start", "help"])
-        def _start(msg):
-            self.bot.send_chat_action(msg.chat.id, "typing")
-            text = (
-                "<b>Welcome to TerminJetzt Heilbronn!\n</b>"
+        def on_start(msg: types.Message):
+            welcome = (
+                "<b>Welcome to TerminJetzt Heilbronn!</b>\n"
                 "Use the buttons below to explore appointment info, docs, and FAQs."
             )
-            root_items = self.menu_loader.get_root()
-            kb = self.kbf.make_keyboard([], root_items)
-            self.bot.send_message(msg.chat.id, text, reply_markup=kb)
+            kb = self.kbf.build([], self.loader.get_root())
+            self.bot.send_message(msg.chat.id, welcome, reply_markup=kb)
 
         @self.bot.callback_query_handler(func=lambda c: True)
-        def _callbacks(call):
-            path = (
-                [] if call.data == "ROOT" else call.data.split(":") if call.data else []
-            )
-            item = self.menu_loader.find_by_path(path) if path else None
-            if item is None:  # unknown path, go home
-                root_items = self.menu_loader.get_root()
-                kb = self.kbf.make_keyboard([], root_items)
-                self.bot.edit_message_reply_markup(
-                    call.message.chat.id, call.message.message_id, reply_markup=kb
-                )
+        def on_callback(call: types.CallbackQuery):
+            data = call.data or BACK_ROOT
+            if data == BACK_ROOT:
+                self._show_menu(call, [])
+                return
+            path = data.split(":")
+            item = self.loader.find_by_path(path)
+
+            # Unknown → reset
+            if item is None:
+                self._show_menu(call, [])
                 return
 
-            # if leaf, send answer, keep same kb
+            # Leaf node → show answer (stay on same path)
             if item.is_leaf() and item.answer:
-                self.bot.answer_callback_query(call.id)
-                breadcrumb = item.breadcrumb(path)
+                title = item.breadcrumb(path)
+                text = f"<b>{title}</b>\n\n{item.answer}"
+                kb = self.kbf.build(path, ())
                 self.bot.edit_message_text(
-                    f"<b>{breadcrumb}</b>\n\n{item.answer}",
+                    text,
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
-                    reply_markup=self.kbf.make_keyboard(path, ()),
-                )
-            else:  # has children – open submenu
-                self.bot.answer_callback_query(call.id)
-                kb = self.kbf.make_keyboard(path, item.children)
-                self.bot.edit_message_reply_markup(
-                    call.message.chat.id,
-                    call.message.message_id,
                     reply_markup=kb,
                 )
+            else:
+                # Non-leaf → open submenu
+                self._show_menu(call, path)
 
-        @self.bot.message_handler(func=lambda m: True, content_types=["text"])
-        def _fallback(msg):
-            """Handle free text via simple keyword lookup."""
-            answer = self._search_faq(msg.text)
+        @self.bot.message_handler(func=lambda m: True)
+        def on_fallback(msg: types.Message):
+            answer = self._search(msg.text or "")
             if answer:
                 self.bot.reply_to(msg, answer)
             else:
-                self.bot.reply_to(
-                    msg, "Sorry, I didn't understand that. Please use the menu below."
-                )
+                self.bot.reply_to(msg, "Sorry, I didn't get that. Please use the menu.")
 
-    # ---------------- Helpers --------------------------------------------
+    # Helpers --------------------------------------------------------------
+
+    def _show_menu(self, call: types.CallbackQuery, path: List[str]):
+        node = self.loader.find_by_path(path) if path else None
+        items = node.children if node else self.loader.get_root()
+        kb = self.kbf.build(path, items)
+        # Edit only the keyboard; keep the same text
+        self.bot.edit_message_reply_markup(
+            call.message.chat.id, call.message.message_id, reply_markup=kb
+        )
 
     @lru_cache(maxsize=128)
-    def _search_faq(self, text: str) -> Optional[str]:
-        text_lower = text.lower()
-        # naive search – iterate all leaf answers
-        for root in self.menu_loader.get_root():
-            for leaf in self._iter_leaves(root):
-                if leaf.answer and any(
-                    word in leaf.answer.lower() for word in text_lower.split()
-                ):
+    def _search(self, query: str) -> Optional[str]:
+        q_words = query.lower().split()
+        for root in self.loader.get_root():
+            for leaf in self._iterate_leaves(root):
+                if leaf.answer and any(w in leaf.answer.lower() for w in q_words):
                     return leaf.answer
         return None
 
-    def _iter_leaves(self, item: MenuItem):
+    def _iterate_leaves(self, item: MenuItem):
         if item.is_leaf():
             yield item
         else:
-            for child in item.children:
-                yield from self._iter_leaves(child)
+            for c in item.children:
+                yield from self._iterate_leaves(c)
 
-    # ---------------- API -------------------------------------------------
+    # API ------------------------------------------------------------------
 
     def run(self):
-        logging.info("🤖 TerminJetzt bot polling started …")
-        self.bot.infinity_polling()
-
+        logging.info("🤖 Bot is polling …")
+        self.bot.infinity_polling(skip_pending=True)
 
 # ---------------------------------------------------------------------------
 # 5. Entrypoint
 # ---------------------------------------------------------------------------
 
-
 def main():
     load_dotenv()
     token = os.getenv("TELEGRAM_TJBOT_TOKEN")
+    if not token:
+        raise RuntimeError("TELEGRAM_TJBOT_TOKEN missing in .env")
+
     channel = os.getenv("CHANNEL")
     default_lang = os.getenv("DEFAULT_LANG", "en")
 
-    if not token:
-        raise RuntimeError("TELEGRAM_TJBOT_TOKEN missing in environment")
+    # Use script directory as reference so it runs from anywhere
+    base_dir = Path(__file__).resolve().parent
+    menu_path = base_dir / "data/menu.yaml"
 
-    menu_path = Path("bot/data/menu.yaml")
-    ml = MenuLoader(menu_path, default_lang)
-    bot = TerminBot(token, ml, channel)
-    bot.run()
+    loader = MenuLoader(menu_path, default_lang)
+    TerminBot(token, loader, channel).run()
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
     main()

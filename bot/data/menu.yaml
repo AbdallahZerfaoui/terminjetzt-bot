@@ -1,16 +1,56 @@
-menu:
-  - id: times
-    text: "📅 Appointment Info"
-    children:
-      - id: latest
-        text: "🔄 Latest Release Times"
-        answer: "Slots usually drop Tue–Thu 08–11 h."
-      - id: refresh_tips
-        text: "🗓️ When to Refresh?"
-        answer: "Refresh Ausländeramt page every 20 s during the window…"
-  - id: docs
-    text: "📃 Documentation"
-    children:
-      - id: required
-        text: "📋 Required Docs"
-        answer: "Passport, biometric photo, 35 € fee…"
+en:
+  menu:
+    - id: appointment
+      text: "📅 Appointment Info"
+      children:
+        - id: latest_slots
+          text: "🔄 Latest Release Times"
+          answer: "Based on public bookings, Heilbronn releases new appointments most often on <b>Tuesday‑Thursday between 08:00 and 11:00 CET</b>. Refresh the portal every 20–30 s during these hours."
+        - id: booking_portal
+          text: "🌐 Booking Portal"
+          answer: "<a href=\"https://www.etermin.net/qtermin-stadtheilbronn-abh?lang=en\">Book appointments via eTermin</a>."
+        - id: contact
+          text: "📞 Contact & Opening Hours"
+          answer: "Ausländerbehörde Heilbronn<br>Marktplatz 7, Eingang Lohtorstraße, 2. OG<br>Phone: 07131 56‑2064 (Mon‑Wed 14:00‑16:00, Thu 08:30‑12:00)<br>Email: <a href=\"mailto:abh@heilbronn.de\">abh@heilbronn.de</a>"
+        - id: refresh_tips
+          text: "🗓️ When to Refresh?"
+          answer: "Use ⌘/Ctrl + R every 20 s; avoid auto‑refresh below 10 s to prevent blocking."
+    - id: docs
+      text: "📃 Documentation"
+      children:
+        - id: checklist
+          text: "📋 Required Documents"
+          answer: "<b>Bring originals + copies</b>: Passport, biometric photo, application form, proof of insurance, income (last 3 payslips & employer letter), rental contract/ Wohnraumbescheinigung, fee."
+        - id: forms
+          text: "📝 Forms to Download"
+          children:
+            - id: form_antrag
+              text: "↘ Aufenthaltserlaubnis"
+              answer: "<a href=\"https://www.heilbronn.de/fileadmin/Dateien/01_Rathaus/02_Buergerservice/Auslaenderangelegenheiten/Formulare/Antrag_Aufenthaltserlaubnis.pdf\">PDF: Antrag auf Erteilung einer Aufenthaltserlaubnis</a>"
+            - id: form_verlaengerung
+              text: "↘ Verlängerung Aufenthaltstitel"
+              answer: "<a href=\"https://www.heilbronn.de/fileadmin/Dateien/01_Rathaus/02_Buergerservice/Auslaenderangelegenheiten/Formulare/Antrag_Verlaengerung_Aufenthaltstitel.pdf\">PDF: Antrag Verlängerung Aufenthaltstitel</a>"
+            - id: form_wohnraum
+              text: "↘ Wohnraumbescheinigung"
+              answer: "<a href=\"https://www.heilbronn.de/fileadmin/Dateien/01_Rathaus/02_Buergerservice/Auslaenderangelegenheiten/Formulare/Wohnraumbescheinigung.pdf\">PDF: Wohnraumbescheinigung</a>"
+        - id: fees
+          text: "💶 Fees & Payment"
+          answer: "First issue: €100 | Extension ≤3 months: €96 | Extension >3 months: €93 | Settlement permit: €113. Pay by card or cash."
+    - id: faqs
+      text: "❓ FAQs"
+      children:
+        - id: processing_time
+          text: "⌛ Processing Time"
+          answer: "ID cards are ready in 2‑3 weeks; you'll be notified by SMS/email."
+        - id: no_slots
+          text: "🚫 No Slots Visible?"
+          answer: "Slots may be fully booked; subscribe to our channel for instant alerts."
+        - id: digital_photo
+          text: "📸 Digital Photos"
+          answer: "From 01 May 2025 the office can take digital biometric photos on‑site for €6."
+        - id: ukraine
+          text: "🇺🇦 Temporary Protection"
+          answer: "EU has extended temporary protection for Ukrainians until 4 March 2027. Most permits are auto‑extended; no appointment needed for renewal."
+    - id: channel
+      text: "📢 Announcements"
+      answer: "Join <a href=\"https://t.me/TerminJetztHeilbronn\">@TerminJetztHeilbronn</a> for live appointment alerts."

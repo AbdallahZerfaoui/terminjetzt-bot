@@ -11,7 +11,7 @@ en:
           answer: "<a href=\"https://www.etermin.net/qtermin-stadtheilbronn-abh?lang=en\">Book appointments via eTermin</a>."
         - id: contact
           text: "📞 Contact & Opening Hours"
-          answer: "Ausländerbehörde Heilbronn<br>Marktplatz 7, Eingang Lohtorstraße, 2. OG<br>Phone: 07131 56‑2064 (Mon‑Wed 14:00‑16:00, Thu 08:30‑12:00)<br>Email: <a href=\"mailto:abh@heilbronn.de\">abh@heilbronn.de</a>"
+          answer: "Ausländerbehörde Heilbronn\nMarktplatz 7, Eingang Lohtorstraße, 2. OG\nPhone: 07131 56-2064 (Mon-Wed 14:00-16:00, Thu 08:30-12:00)\nEmail: <a href=\"mailto:abh@heilbronn.de\">abh@heilbronn.de</a>"
         - id: refresh_tips
           text: "🗓️ When to Refresh?"
           answer: "Use ⌘/Ctrl + R every 20 s; avoid auto‑refresh below 10 s to prevent blocking."

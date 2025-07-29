@@ -11,6 +11,7 @@ This version automatically detects language blocks in `menu.yaml` (e.g.
 buttons.  It also exposes a *Notify Me* link to your Telegram channel at
 root level.
 """
+
 from __future__ import annotations
 
 import os
@@ -27,6 +28,7 @@ from dotenv import load_dotenv
 # ---------------------------------------------------------------------------
 # 1. Domain Model
 # ---------------------------------------------------------------------------
+
 
 @dataclass(slots=True, frozen=True)
 class MenuItem:
@@ -62,9 +64,11 @@ class MenuItem:
             parts.append(node.text.strip())
         return " / ".join(reversed(parts))
 
+
 # ---------------------------------------------------------------------------
 # 2. Menu Loader – YAML → MenuItem tree
 # ---------------------------------------------------------------------------
+
 
 class MenuLoader:
     def __init__(self, yaml_path: Path, default_lang: str = "en") -> None:
@@ -118,17 +122,21 @@ class MenuLoader:
             children=children,
         )
 
+
 # ---------------------------------------------------------------------------
 # 3. Keyboard Factory – MenuItem → InlineKeyboardMarkup
 # ---------------------------------------------------------------------------
 
 BACK_ROOT = "ROOT"  # callback data that returns to top-level menu
 
+
 class KeyboardFactory:
     def __init__(self, channel: Optional[str] = None) -> None:
         self.channel = channel
 
-    def build(self, parent_path: List[str], items: Tuple[MenuItem, ...]) -> types.InlineKeyboardMarkup:
+    def build(
+        self, parent_path: List[str], items: Tuple[MenuItem, ...]
+    ) -> types.InlineKeyboardMarkup:
         kb = types.InlineKeyboardMarkup(row_width=1)
         for itm in items:
             cb_data = ":".join(parent_path + [itm.id])
@@ -138,7 +146,7 @@ class KeyboardFactory:
         if not parent_path and self.channel:
             kb.add(
                 types.InlineKeyboardButton(
-                    "🔔 Notify Me",
+                    "🔔 Notify Me (Join)",
                     url=f"https://t.me/{self.channel.lstrip('@')}",
                 )
             )
@@ -149,9 +157,11 @@ class KeyboardFactory:
             kb.add(types.InlineKeyboardButton("⬅️ Back", callback_data=prev_cb))
         return kb
 
+
 # ---------------------------------------------------------------------------
 # 4. Bot Orchestrator
 # ---------------------------------------------------------------------------
+
 
 class TerminBot:
     def __init__(self, token: str, loader: MenuLoader, channel: Optional[str] = None):
@@ -242,9 +252,11 @@ class TerminBot:
         logging.info("🤖 Bot is polling …")
         self.bot.infinity_polling(skip_pending=True)
 
+
 # ---------------------------------------------------------------------------
 # 5. Entrypoint
 # ---------------------------------------------------------------------------
+
 
 def main():
     load_dotenv()
@@ -264,5 +276,7 @@ def main():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s"
+    )
     main()
